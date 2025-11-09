@@ -1,0 +1,25 @@
+CREATE DATABASE cafe_menu_db;
+USE cafe_menu_db;
+
+CREATE TABLE menu_items (
+    item_id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(100),
+    item_name VARCHAR(200),
+    price DECIMAL(10,2)
+);
+
+INSERT INTO menu_items (category, item_name, price) VALUES
+('Juice', 'Orange Juice', 80.00),
+('Juice', 'Apple Juice', 100.00),
+('Juice', 'Mango Shake', 120.00),
+('Coffee', 'Espresso', 120.00),
+('Coffee', 'Cappuccino', 150.00),
+('Coffee', 'Latte', 140.00),
+('Snacks', 'Veg Sandwich', 70.00),
+('Snacks', 'French Fries', 60.00),
+('Dessert', 'Chocolate Cake', 150.00),
+('Dessert', 'Brownie', 100.00),
+('Tea', 'Green Tea', 70.00),
+('Tea', 'Masala Tea', 65.00);
+
+SELECT * FROM menu_items;

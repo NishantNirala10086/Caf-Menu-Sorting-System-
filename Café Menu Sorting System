@@ -1,0 +1,227 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import mysql.connector
+
+# ---------------------- DATABASE FUNCTIONS ----------------------
+def connect_db():
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="12345678",  # change this to your MySQL password
+            database="cafe_menu_db"
+        )
+        return conn
+    except mysql.connector.Error as e:
+        messagebox.showerror("Database Error", str(e))
+        return None
+
+def get_categories():
+    conn = connect_db()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT category FROM menu_items")
+        categories = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return categories
+    return []
+
+def get_items_by_category(category):
+    conn = connect_db()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT item_name, price FROM menu_items WHERE category = %s", (category,))
+        items = cursor.fetchall()
+        conn.close()
+        return items
+    return []
+
+def add_menu_item(category, item_name, price):
+    conn = connect_db()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO menu_items (category, item_name, price) VALUES (%s, %s, %s)",
+                       (category, item_name, price))
+        conn.commit()
+        conn.close()
+
+def delete_menu_item(item_name):
+    conn = connect_db()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM menu_items WHERE item_name = %s", (item_name,))
+        conn.commit()
+        conn.close()
+
+# ---------------------- QUICK SORT FUNCTION ----------------------
+def quick_sort(arr, key=lambda x: x, reverse=False):
+    if len(arr) <= 1:
+        return arr
+    else:
+        pivot = key(arr[len(arr)//2])
+        left = [x for x in arr if key(x) < pivot]
+        middle = [x for x in arr if key(x) == pivot]
+        right = [x for x in arr if key(x) > pivot]
+        sorted_list = quick_sort(left, key, reverse) + middle + quick_sort(right, key, reverse)
+        if reverse:
+            sorted_list.reverse()
+        return sorted_list
+
+# ---------------------- MAIN APPLICATION ----------------------
+class CafeMenuApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("☕ Interactive Café Menu Sorting System")
+        self.root.geometry("950x700")
+        self.root.config(bg="#FFFDF5")
+        self.create_widgets()
+
+    def create_widgets(self):
+        tk.Label(self.root, text="☕ Smart Café Menu Sorting System", font=("Arial", 20, "bold"), bg="#FFFDF5", fg="#333").pack(pady=15)
+
+        # ---------- Control Frame ----------
+        control_frame = ttk.LabelFrame(self.root, text="Controls")
+        control_frame.pack(padx=20, pady=10, fill="x")
+
+        # Category Dropdown
+        self.categories = get_categories()
+        self.selected_category = tk.StringVar()
+        self.category_menu = ttk.Combobox(control_frame, textvariable=self.selected_category,
+                                          values=self.categories, state="readonly", width=20)
+        self.category_menu.grid(row=0, column=0, padx=10, pady=10)
+        if self.categories:
+            self.category_menu.current(0)
+
+        # Sort dropdown
+        self.sort_option = tk.StringVar()
+        self.sort_option.set("Low → High")
+        ttk.Combobox(control_frame, textvariable=self.sort_option,
+                     values=["Quick Sort(L→H)", "High → Low"], width=15).grid(row=0, column=1, padx=10)
+
+        # Search Entry
+        tk.Label(control_frame, text="Search Item:").grid(row=0, column=2, padx=5)
+        self.search_entry = ttk.Entry(control_frame, width=25)
+        self.search_entry.grid(row=0, column=3, padx=5)
+
+        ttk.Button(control_frame, text="Show / Search Items", command=self.show_items).grid(row=0, column=4, padx=10)
+        ttk.Button(control_frame, text="Clear Table", command=self.clear_table).grid(row=0, column=5, padx=10)
+        ttk.Button(control_frame, text="Delete Selected Item", command=self.delete_selected_item).grid(row=0, column=6, padx=10)
+
+        # ---------- Treeview ----------
+        self.tree = ttk.Treeview(self.root, columns=("Item", "Price"), show="headings", height=18)
+        self.tree.heading("Item", text="Item Name")
+        self.tree.heading("Price", text="Price (₹)")
+        self.tree.column("Item", width=600)
+        self.tree.column("Price", width=150, anchor="center")
+        self.tree.pack(padx=20, pady=20, fill="both", expand=True)
+
+        # Hover effect
+        self.tree.bind("<Motion>", self.on_hover)
+
+        # ---------- Add Item ----------
+        add_frame = ttk.LabelFrame(self.root, text="Add New Menu Item")
+        add_frame.pack(padx=20, pady=10, fill="x")
+
+        ttk.Label(add_frame, text="Category:").grid(row=0, column=0, padx=5, pady=5)
+        ttk.Label(add_frame, text="Item Name:").grid(row=0, column=2, padx=5, pady=5)
+        ttk.Label(add_frame, text="Price:").grid(row=0, column=4, padx=5, pady=5)
+
+        self.new_cat = ttk.Entry(add_frame, width=15)
+        self.new_item = ttk.Entry(add_frame, width=25)
+        self.new_price = ttk.Entry(add_frame, width=10)
+        self.new_cat.grid(row=0, column=1, padx=5, pady=5)
+        self.new_item.grid(row=0, column=3, padx=5, pady=5)
+        self.new_price.grid(row=0, column=5, padx=5, pady=5)
+        ttk.Button(add_frame, text="Add Item", command=self.add_item).grid(row=0, column=6, padx=10)
+
+        # ---------- Info Label ----------
+        self.info_label = tk.Label(self.root, text="", bg="#FFFDF5", fg="#555", font=("Arial", 11))
+        self.info_label.pack(pady=5)
+
+    # ---------- Show Items ----------
+    def show_items(self):
+        category = self.selected_category.get()
+        if not category:
+            messagebox.showwarning("Warning", "Please select a category.")
+            return
+
+        items = get_items_by_category(category)
+        search_text = self.search_entry.get().strip().lower()
+        if search_text:
+            items = [item for item in items if search_text in item[0].lower()]
+
+        reverse_sort = True if self.sort_option.get() == "High → Low" else False
+        sorted_items = quick_sort(items, key=lambda x: x[1], reverse=reverse_sort)
+        self.display_items(sorted_items)
+
+    def display_items(self, items):
+        self.clear_table()
+        for name, price in items:
+            self.tree.insert("", "end", values=(name, price))
+        if items:
+            total = len(items)
+            avg_price = sum([p for _, p in items]) / total
+            self.info_label.config(text=f"Total Items: {total} | Average Price: ₹{avg_price:.2f}")
+        else:
+            self.info_label.config(text="No items found.")
+
+    # ---------- Add New Item ----------
+    def add_item(self):
+        cat = self.new_cat.get().strip()
+        name = self.new_item.get().strip()
+        try:
+            price = float(self.new_price.get())
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Enter a valid number for price.")
+            return
+        if not cat or not name:
+            messagebox.showwarning("Missing Data", "Please fill all fields.")
+            return
+
+        add_menu_item(cat, name, price)
+        messagebox.showinfo("Success", f"Added '{name}' under '{cat}' category.")
+
+        # Refresh categories
+        self.categories = get_categories()
+        self.category_menu['values'] = self.categories
+        if cat not in self.categories:
+            self.category_menu.current(0)
+
+        # Clear inputs
+        self.new_cat.delete(0, tk.END)
+        self.new_item.delete(0, tk.END)
+        self.new_price.delete(0, tk.END)
+
+    # ---------- Delete Selected Item ----------
+    def delete_selected_item(self):
+        selected = self.tree.focus()
+        if not selected:
+            messagebox.showwarning("No Selection", "Please select an item to delete.")
+            return
+        values = self.tree.item(selected, "values")
+        item_name = values[0]
+
+        confirm = messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{item_name}'?")
+        if confirm:
+            delete_menu_item(item_name)
+            self.tree.delete(selected)
+            messagebox.showinfo("Deleted", f"'{item_name}' has been deleted successfully.")
+
+    # ---------- Clear Table ----------
+    def clear_table(self):
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+        self.info_label.config(text="")
+
+    def on_hover(self, event):
+        row_id = self.tree.identify_row(event.y)
+        self.tree.tag_remove('hover', *self.tree.get_children())
+        if row_id:
+            self.tree.item(row_id, tags=('hover',))
+            self.tree.tag_configure('hover', background='#f0f0ff')
+
+# ---------------------- MAIN PROGRAM ----------------------
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = CafeMenuApp(root)
+    root.mainloop()
